@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>واجهة البحث</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+      direction: rtl;
+    }
+    .container {
+      max-width: 500px;
+      background: #fff;
+      margin: 40px auto;
+      padding: 30px 40px;
+      border-radius: 8px;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 25px;
+      color: #007BFF;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    select, input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 16px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      border: 1.5px solid #ccc;
+      transition: border-color 0.3s;
+    }
+    select:focus, input[type="text"]:focus {
+      border-color: #007BFF;
+      outline: none;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #loading {
+      text-align: center;
+      color: #007BFF;
+      font-weight: 600;
+      margin-bottom: 15px;
+      display: none;
+    }
+    #result {
+      background: #e9f0ff;
+      border-radius: 6px;
+      padding: 15px;
+      font-size: 16px;
+      color: #222;
+      min-height: 50px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>نظام البحث عن العملاء والمواد</h2>
+
+    <label for="rep">اختر اسم المندوب:</label>
+    <select id="rep">
+      <option value="" disabled selected>-- اختر المندوب --</option>
+      <option value="عد">عد</option>
+      <option value="بشتيوان">بشتيوان</option>
+      <option value="لقمان">لقمان</option>
+    </select>
+
+    <label for="client">اختر العميل:</label>
+    <select id="client" disabled>
+      <option value="" disabled selected>-- اختر المندوب أولاً --</option>
+    </select>
+
+    <label for="code">رمز المادة:</label>
+    <input type="text" id="code" placeholder="ادخل رمز المادة هنا" />
+
+    <div id="loading">جاري البحث...</div>
+
+    <button id="searchBtn" disabled>بحث</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const deploymentId = "AKfycbzJM2gxbiSlsmcyI4CqqVX99uOvnvy7wWG8TftILSla02u32pKVx52Ko05_fry1XLyY"; // استبدلها بـ Deployment ID الخاص بك
+
+    const repSelect = document.getElementById("rep");
+    const clientSelect = document.getElementById("client");
+    const codeInput = document.getElementById("code");
+    const searchBtn = document.getElementById("searchBtn");
+    const loadingDiv = document.getElementById("loading");
+    const resultDiv = document.getElementById("result");
+
+    repSelect.addEventListener("change", () => {
+      const rep = repSelect.value;
+      clientSelect.innerHTML = '<option value="" disabled selected>جاري تحميل العملاء...</option>';
+      clientSelect.disabled = true;
+      resultDiv.textContent = "";
+      codeInput.value = "";
+      searchBtn.disabled = true;
+
+      if (!rep) return;
+
+      fetch(`https://script.google.com/macros/s/${deploymentId}/exec?action=getClients&rep=${encodeURIComponent(rep)}`)
+        .then(res => res.json())
+        .then(clients => {
+          clientSelect.innerHTML = '<option value="" disabled selected>-- اختر العميل --</option>';
+          clients.forEach(client => {
+            const option = document.createElement("option");
+            option.value = client;
+            option.textContent = client;
+            clientSelect.appendChild(option);
+          });
+          clientSelect.disabled = false;
+        })
+        .catch(err => {
+          clientSelect.innerHTML = '<option value="" disabled selected>حدث خطأ في التحميل</option>';
+          console.error(err);
+        });
+    });
+
+    clientSelect.addEventListener("change", () => {
+      searchBtn.disabled = !clientSelect.value || !codeInput.value.trim();
+      resultDiv.textContent = "";
+    });
+
+    codeInput.addEventListener("input", () => {
+      searchBtn.disabled = !clientSelect.value || !codeInput.value.trim();
+      resultDiv.textContent = "";
+    });
+
+    searchBtn.addEventListener("click", () => {
+      const client = clientSelect.value;
+      const code = codeInput.value.trim();
+
+      if (!client || !code) return;
+
+      resultDiv.textContent = "";
+      loadingDiv.style.display = "block";
+      searchBtn.disabled = true;
+
+      fetch(`https://script.google.com/macros/s/${deploymentId}/exec?action=search&client=${encodeURIComponent(client)}&code=${encodeURIComponent(code)}`)
+        .then(res => res.json())
+        .then(data => {
+          loadingDiv.style.display = "none";
+          searchBtn.disabled = false;
+
+          if (data) {
+            resultDiv.innerHTML = 
+              `المادة: ${data.material}<br>` +
+              `السعر: ${data.price}<br>` +
+              `عدد القطع: ${data.quantity}<br>` +
+              `التاريخ: ${data.date}`;
+          } else {
+            resultDiv.textContent = "لا توجد بيانات مطابقة.";
+          }
+        })
+        .catch(err => {
+          loadingDiv.style.display = "none";
+          searchBtn.disabled = false;
+          resultDiv.textContent = "حدث خطأ أثناء البحث.";
+          console.error(err);
+        });
+    });
+  </script>
+</body>
+</html>
